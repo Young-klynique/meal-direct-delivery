@@ -5,10 +5,93 @@ import { useApp } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Store, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Store, ChevronRight, Lock, Eye, EyeOff } from "lucide-react";
+
+const VENDOR_PASSWORD = "vendor2024";
 
 const VendorPortal = () => {
   const { vendors } = useApp();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === VENDOR_PASSWORD) {
+      setIsAuthenticated(true);
+      setError("");
+    } else {
+      setError("Incorrect password. Please try again.");
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        
+        <div className="container py-8">
+          <Link to="/">
+            <Button variant="ghost" className="mb-6">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Home
+            </Button>
+          </Link>
+
+          <div className="max-w-md mx-auto">
+            <Card className="shadow-elevated">
+              <CardHeader className="text-center">
+                <div className="h-16 w-16 rounded-2xl gradient-warm mx-auto flex items-center justify-center mb-4">
+                  <Lock className="h-8 w-8 text-primary-foreground" />
+                </div>
+                <CardTitle className="text-2xl">Vendor Access</CardTitle>
+                <p className="text-muted-foreground mt-2">
+                  Enter the vendor password to access the portal
+                </p>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter vendor password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setError("");
+                      }}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  
+                  {error && (
+                    <p className="text-sm text-destructive">{error}</p>
+                  )}
+                  
+                  <Button type="submit" className="w-full" variant="warm">
+                    Access Portal
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
