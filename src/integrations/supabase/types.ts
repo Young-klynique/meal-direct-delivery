@@ -14,7 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      orders: {
+        Row: {
+          created_at: string
+          customer_location: string
+          customer_name: string
+          customer_phone: string
+          delivery_fee: number
+          id: string
+          items: Json
+          status: string
+          total: number
+          updated_at: string
+          user_id: string
+          vendor_id: string
+          vendor_name: string
+        }
+        Insert: {
+          created_at?: string
+          customer_location: string
+          customer_name: string
+          customer_phone: string
+          delivery_fee: number
+          id?: string
+          items: Json
+          status?: string
+          total: number
+          updated_at?: string
+          user_id: string
+          vendor_id: string
+          vendor_name: string
+        }
+        Update: {
+          created_at?: string
+          customer_location?: string
+          customer_name?: string
+          customer_phone?: string
+          delivery_fee?: number
+          id?: string
+          items?: Json
+          status?: string
+          total?: number
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string
+          vendor_name?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          phone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          phone: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vendors: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image: string | null
+          is_open: boolean | null
+          menu: Json | null
+          name: string
+          phone: string | null
+          rating: number | null
+          sender_id: string | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image?: string | null
+          is_open?: boolean | null
+          menu?: Json | null
+          name: string
+          phone?: string | null
+          rating?: number | null
+          sender_id?: string | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image?: string | null
+          is_open?: boolean | null
+          menu?: Json | null
+          name?: string
+          phone?: string | null
+          rating?: number | null
+          sender_id?: string | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
