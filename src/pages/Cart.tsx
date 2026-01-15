@@ -1,23 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Trash2, ShoppingBag, MapPin, Phone, User } from "lucide-react";
+import { ArrowLeft, Trash2, ShoppingBag, MapPin, Phone, User, LogIn } from "lucide-react";
 import { toast } from "sonner";
-import { Order } from "@/types";
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { cart, removeFromCart, clearCart, addOrder, deliveryFee } = useApp();
+  const { cart, removeFromCart, clearCart, deliveryFee } = useApp();
+  const { user, loading } = useAuth();
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryLocation, setDeliveryLocation] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pre-fill from user profile
+  useEffect(() => {
+    if (user) {
+      setCustomerName(user.user_metadata?.full_name || "");
+      setCustomerPhone(user.user_metadata?.phone || "");
+    }
+  }, [user]);
 
   const calculateItemTotal = (item: typeof cart[0]) => {
     const addOnsTotal = item.selectedAddOns.reduce((sum, addon) => sum + addon.price, 0);
@@ -44,6 +54,12 @@ const Cart = () => {
   }, [] as { vendorId: string; vendorName: string; items: (typeof cart[0] & { originalIndex: number })[] }[]);
 
   const handleSubmitOrder = async () => {
+    if (!user) {
+      toast.error("Please sign in to place an order");
+      navigate("/auth");
+      return;
+    }
+
     if (!customerName.trim() || !customerPhone.trim() || !deliveryLocation.trim()) {
       toast.error("Please fill in all delivery details");
       return;
@@ -56,31 +72,88 @@ const Cart = () => {
 
     setIsSubmitting(true);
 
-    // Create orders for each vendor
-    groupedItems.forEach((group) => {
-      const groupSubtotal = group.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
-      const order: Order = {
-        id: `order-${Date.now()}-${group.vendorId}`,
-        vendorId: group.vendorId,
-        vendorName: group.vendorName,
-        items: group.items,
-        customerName,
-        customerPhone,
-        deliveryLocation,
-        subtotal: groupSubtotal,
-        deliveryFee,
-        total: groupSubtotal + deliveryFee,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      addOrder(order);
-    });
+    try {
+      // Create orders for each vendor in the database
+      for (const group of groupedItems) {
+        const groupSubtotal = group.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+        const orderTotal = groupSubtotal + deliveryFee;
 
-    clearCart();
-    toast.success("Order placed successfully! Pay on delivery.");
-    navigate("/order-success");
-    setIsSubmitting(false);
+        // Insert order into database
+        const { data: orderData, error: orderError } = await supabase
+          .from("orders")
+          .insert({
+            user_id: user.id,
+            vendor_id: group.vendorId,
+            vendor_name: group.vendorName,
+            items: JSON.parse(JSON.stringify(group.items)),
+            total: orderTotal,
+            delivery_fee: deliveryFee,
+            customer_name: customerName.trim(),
+            customer_phone: customerPhone.trim(),
+            customer_location: deliveryLocation.trim(),
+            status: "pending",
+          })
+          .select()
+          .single();
+
+        if (orderError) {
+          console.error("Order error:", orderError);
+          throw new Error("Failed to place order");
+        }
+
+        // Get vendor phone for SMS (from database if available)
+        const { data: vendorData } = await supabase
+          .from("vendors")
+          .select("phone")
+          .eq("vendor_id", group.vendorId)
+          .single();
+
+        // Send SMS notification to vendor
+        if (vendorData?.phone) {
+          const itemsSummary = group.items
+            .map((item) => `${item.quantity}x ${item.menuItemName}`)
+            .join(", ");
+
+          try {
+            await supabase.functions.invoke("send-sms", {
+              body: {
+                vendorPhone: vendorData.phone,
+                vendorName: group.vendorName,
+                customerName: customerName.trim(),
+                customerPhone: customerPhone.trim(),
+                orderItems: itemsSummary,
+                total: orderTotal,
+                location: deliveryLocation.trim(),
+              },
+            });
+          } catch (smsError) {
+            console.error("SMS error:", smsError);
+            // Don't fail the order if SMS fails
+          }
+        }
+      }
+
+      clearCart();
+      toast.success("Order placed successfully! Pay on delivery.");
+      navigate("/order-success");
+    } catch (error: any) {
+      console.error("Order submission error:", error);
+      toast.error(error.message || "Failed to place order. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container py-16 text-center">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (cart.length === 0) {
     return (
@@ -106,7 +179,7 @@ const Cart = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <div className="container py-8">
         <Link to="/">
           <Button variant="ghost" className="mb-6">
@@ -119,6 +192,29 @@ const Cart = () => {
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-6">
             <h1 className="text-2xl font-bold">Your Cart ({cart.length} items)</h1>
+
+            {!user && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <LogIn className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Sign in required</p>
+                        <p className="text-sm text-muted-foreground">
+                          You need to sign in to place an order
+                        </p>
+                      </div>
+                    </div>
+                    <Link to="/auth">
+                      <Button variant="warm" size="sm">
+                        Sign In
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {groupedItems.map((group) => (
               <Card key={group.vendorId} className="shadow-card">
@@ -262,9 +358,9 @@ const Cart = () => {
                     variant="warm"
                     size="lg"
                     onClick={handleSubmitOrder}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !user}
                   >
-                    {isSubmitting ? "Placing Order..." : "Place Order"}
+                    {isSubmitting ? "Placing Order..." : !user ? "Sign In to Order" : "Place Order"}
                   </Button>
                   <p className="text-xs text-center text-muted-foreground">
                     💵 Pay on delivery

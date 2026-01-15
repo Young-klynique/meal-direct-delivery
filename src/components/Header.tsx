@@ -1,11 +1,20 @@
-import { ShoppingCart, Store } from "lucide-react";
+import { ShoppingCart, Store, User, LogOut, QrCode } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "./ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 export const Header = () => {
   const { cart } = useApp();
+  const { user, loading, signOut } = useAuth();
   const itemCount = cart.length;
 
   return (
@@ -21,12 +30,51 @@ export const Header = () => {
           </div>
         </Link>
 
-        <nav className="flex items-center gap-3">
+        <nav className="flex items-center gap-2">
+          <Link to="/qr-code">
+            <Button variant="ghost" size="sm" className="text-muted-foreground">
+              <QrCode className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">QR Code</span>
+            </Button>
+          </Link>
           <Link to="/vendor-portal">
             <Button variant="ghost" size="sm" className="text-muted-foreground">
               Vendor Portal
             </Button>
           </Link>
+          
+          {!loading && (
+            user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <User className="h-4 w-4" />
+                    <span className="hidden sm:inline ml-2 max-w-[100px] truncate">
+                      {user.user_metadata?.full_name || user.email?.split("@")[0]}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                    {user.email}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={signOut}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link to="/auth">
+                <Button variant="outline" size="sm">
+                  <User className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-2">Sign In</span>
+                </Button>
+              </Link>
+            )
+          )}
+
           <Link to="/cart">
             <Button variant="outline" size="sm" className="relative">
               <ShoppingCart className="h-4 w-4" />
