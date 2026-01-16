@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Vendor, CartItem, Order } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { Vendor, CartItem, Order, MenuItem } from '@/types';
 import { initialVendors, DELIVERY_FEE } from '@/data/vendors';
 
 interface AppContextType {
@@ -13,15 +14,14 @@ interface AppContextType {
   addOrder: (order: Order) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   deliveryFee: number;
+  loadingVendors: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [vendors, setVendors] = useState<Vendor[]>(() => {
-    const saved = localStorage.getItem('klm-vendors');
-    return saved ? JSON.parse(saved) : initialVendors;
-  });
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loadingVendors, setLoadingVendors] = useState(true);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('klm-cart');
@@ -33,8 +33,82 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Load vendors from database
   useEffect(() => {
-    localStorage.setItem('klm-vendors', JSON.stringify(vendors));
+    const fetchVendors = async () => {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching vendors:', error);
+        // Fall back to localStorage/initial vendors
+        const saved = localStorage.getItem('klm-vendors');
+        setVendors(saved ? JSON.parse(saved) : initialVendors);
+      } else if (data && data.length > 0) {
+        // Transform database vendors to match Vendor type
+        const transformedVendors: Vendor[] = data.map((v) => ({
+          id: v.vendor_id,
+          name: v.name,
+          description: v.description || '',
+          image: v.image || undefined,
+          isOpen: v.is_open ?? true,
+          menuItems: Array.isArray(v.menu) ? (v.menu as unknown as MenuItem[]) : [],
+        }));
+        setVendors(transformedVendors);
+      } else {
+        // No vendors in DB, use initial
+        const saved = localStorage.getItem('klm-vendors');
+        setVendors(saved ? JSON.parse(saved) : initialVendors);
+      }
+      setLoadingVendors(false);
+    };
+
+    fetchVendors();
+
+    // Subscribe to vendor changes
+    const channel = supabase
+      .channel('vendors-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vendors',
+        },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as any;
+            setVendors((prev) =>
+              prev.map((v) =>
+                v.id === updated.vendor_id
+                  ? {
+                      ...v,
+                      name: updated.name,
+                      description: updated.description || '',
+                      image: updated.image || undefined,
+                      isOpen: updated.is_open ?? true,
+                      menuItems: Array.isArray(updated.menu) ? (updated.menu as unknown as MenuItem[]) : [],
+                    }
+                  : v
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Sync vendors to localStorage as backup
+  useEffect(() => {
+    if (vendors.length > 0) {
+      localStorage.setItem('klm-vendors', JSON.stringify(vendors));
+    }
   }, [vendors]);
 
   useEffect(() => {
@@ -82,6 +156,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addOrder,
         updateOrderStatus,
         deliveryFee: DELIVERY_FEE,
+        loadingVendors,
       }}
     >
       {children}
