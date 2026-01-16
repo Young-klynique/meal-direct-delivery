@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useApp } from "@/context/AppContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,17 +20,33 @@ import {
   Truck,
   MapPin,
   Phone,
-  User
+  User,
+  RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
-import { MenuItem, AddOn, Order } from "@/types";
+import { MenuItem, AddOn } from "@/types";
+
+interface DBOrder {
+  id: string;
+  vendor_id: string;
+  vendor_name: string;
+  items: any;
+  total: number;
+  delivery_fee: number;
+  customer_name: string;
+  customer_phone: string;
+  customer_location: string;
+  status: string;
+  created_at: string;
+}
 
 const VendorDashboard = () => {
   const { vendorId } = useParams();
-  const { vendors, setVendors, orders, updateOrderStatus } = useApp();
+  const { vendors, setVendors } = useApp();
+  const [dbOrders, setDbOrders] = useState<DBOrder[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const vendor = vendors.find((v) => v.id === vendorId);
-  const vendorOrders = orders.filter((o) => o.vendorId === vendorId);
 
   // New item form state
   const [newItemName, setNewItemName] = useState("");
@@ -38,6 +55,100 @@ const VendorDashboard = () => {
   const [newAddOnName, setNewAddOnName] = useState("");
   const [newAddOnPrice, setNewAddOnPrice] = useState("");
   const [tempAddOns, setTempAddOns] = useState<AddOn[]>([]);
+  const [vendorPhone, setVendorPhone] = useState("");
+
+  // Load vendor phone from database
+  useEffect(() => {
+    if (!vendorId) return;
+    
+    const fetchVendorPhone = async () => {
+      const { data } = await supabase
+        .from("vendors")
+        .select("phone")
+        .eq("vendor_id", vendorId)
+        .maybeSingle();
+      
+      if (data?.phone) {
+        setVendorPhone(data.phone);
+      }
+    };
+    
+    fetchVendorPhone();
+  }, [vendorId]);
+
+  // Fetch orders from database
+  useEffect(() => {
+    if (!vendorId) return;
+
+    const fetchOrders = async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("vendor_id", vendorId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching orders:", error);
+      } else {
+        setDbOrders(data || []);
+      }
+      setLoading(false);
+    };
+
+    fetchOrders();
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel(`orders-${vendorId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `vendor_id=eq.${vendorId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            setDbOrders((prev) => [payload.new as DBOrder, ...prev]);
+            toast.success("New order received!", {
+              description: `Order from ${(payload.new as DBOrder).customer_name}`,
+            });
+          } else if (payload.eventType === "UPDATE") {
+            setDbOrders((prev) =>
+              prev.map((order) =>
+                order.id === (payload.new as DBOrder).id
+                  ? (payload.new as DBOrder)
+                  : order
+              )
+            );
+          } else if (payload.eventType === "DELETE") {
+            setDbOrders((prev) =>
+              prev.filter((order) => order.id !== (payload.old as DBOrder).id)
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [vendorId]);
+
+  const updateOrderStatus = async (orderId: string, status: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ status })
+      .eq("id", orderId);
+
+    if (error) {
+      toast.error("Failed to update order status");
+      console.error(error);
+    } else {
+      toast.success(`Order marked as ${status}`);
+    }
+  };
 
   if (!vendor) {
     return (
@@ -56,13 +167,28 @@ const VendorDashboard = () => {
     );
   }
 
-  const toggleVendorOpen = () => {
+  const toggleVendorOpen = async () => {
+    const newIsOpen = !vendor.isOpen;
+    
+    // Update in database
+    const { error } = await supabase
+      .from("vendors")
+      .update({ is_open: newIsOpen })
+      .eq("vendor_id", vendorId);
+
+    if (error) {
+      toast.error("Failed to update vendor status");
+      console.error(error);
+      return;
+    }
+
+    // Update local state
     setVendors((prev) =>
       prev.map((v) =>
-        v.id === vendorId ? { ...v, isOpen: !v.isOpen } : v
+        v.id === vendorId ? { ...v, isOpen: newIsOpen } : v
       )
     );
-    toast.success(vendor.isOpen ? "Vendor marked as closed" : "Vendor marked as open");
+    toast.success(newIsOpen ? "Vendor marked as open" : "Vendor marked as closed");
   };
 
   const addTempAddOn = () => {
@@ -80,7 +206,7 @@ const VendorDashboard = () => {
     setTempAddOns((prev) => prev.filter((a) => a.id !== id));
   };
 
-  const addMenuItem = () => {
+  const addMenuItem = async () => {
     if (!newItemName || !newItemPrice) {
       toast.error("Please enter item name and price");
       return;
@@ -94,10 +220,25 @@ const VendorDashboard = () => {
       addOns: tempAddOns.map((a, i) => ({ ...a, id: `addon-${Date.now()}-${i}` })),
     };
 
+    const updatedMenu = [...vendor.menuItems, newItem];
+
+    // Update in database
+    const { error } = await supabase
+      .from("vendors")
+      .update({ menu: JSON.parse(JSON.stringify(updatedMenu)) })
+      .eq("vendor_id", vendorId);
+
+    if (error) {
+      toast.error("Failed to add menu item");
+      console.error(error);
+      return;
+    }
+
+    // Update local state
     setVendors((prev) =>
       prev.map((v) =>
         v.id === vendorId
-          ? { ...v, menuItems: [...v.menuItems, newItem] }
+          ? { ...v, menuItems: updatedMenu }
           : v
       )
     );
@@ -110,18 +251,33 @@ const VendorDashboard = () => {
     toast.success("Menu item added!");
   };
 
-  const deleteMenuItem = (itemId: string) => {
+  const deleteMenuItem = async (itemId: string) => {
+    const updatedMenu = vendor.menuItems.filter((item) => item.id !== itemId);
+
+    // Update in database
+    const { error } = await supabase
+      .from("vendors")
+      .update({ menu: JSON.parse(JSON.stringify(updatedMenu)) })
+      .eq("vendor_id", vendorId);
+
+    if (error) {
+      toast.error("Failed to delete menu item");
+      console.error(error);
+      return;
+    }
+
+    // Update local state
     setVendors((prev) =>
       prev.map((v) =>
         v.id === vendorId
-          ? { ...v, menuItems: v.menuItems.filter((item) => item.id !== itemId) }
+          ? { ...v, menuItems: updatedMenu }
           : v
       )
     );
     toast.success("Menu item deleted");
   };
 
-  const getStatusColor = (status: Order['status']) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-accent text-accent-foreground';
       case 'preparing': return 'bg-primary text-primary-foreground';
@@ -131,12 +287,13 @@ const VendorDashboard = () => {
     }
   };
 
-  const getStatusIcon = (status: Order['status']) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return <Clock className="h-4 w-4" />;
       case 'preparing': return <Package className="h-4 w-4" />;
       case 'ready': return <Truck className="h-4 w-4" />;
       case 'delivered': return <CheckCircle className="h-4 w-4" />;
+      default: return <Clock className="h-4 w-4" />;
     }
   };
 
@@ -171,27 +328,35 @@ const VendorDashboard = () => {
         </div>
 
         <Tabs defaultValue="orders" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="menu">Menu Management</TabsTrigger>
+            <TabsTrigger value="menu">Menu</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           {/* Orders Tab */}
           <TabsContent value="orders" className="space-y-4">
-            <h2 className="text-xl font-semibold">
-              Incoming Orders ({vendorOrders.filter(o => o.status !== 'delivered').length})
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">
+                Incoming Orders ({dbOrders.filter(o => o.status !== 'delivered').length})
+              </h2>
+              {loading && (
+                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
             
-            {vendorOrders.length === 0 ? (
+            {dbOrders.length === 0 ? (
               <Card className="shadow-card">
                 <CardContent className="py-12 text-center">
                   <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <p className="text-muted-foreground">No orders yet</p>
+                  <p className="text-muted-foreground">
+                    {loading ? "Loading orders..." : "No orders yet"}
+                  </p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
-                {vendorOrders.map((order) => (
+                {dbOrders.map((order) => (
                   <Card key={order.id} className="shadow-card">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
@@ -200,7 +365,7 @@ const VendorDashboard = () => {
                             Order #{order.id.slice(-6).toUpperCase()}
                           </CardTitle>
                           <p className="text-sm text-muted-foreground">
-                            {new Date(order.createdAt).toLocaleString()}
+                            {new Date(order.created_at).toLocaleString()}
                           </p>
                         </div>
                         <Badge className={getStatusColor(order.status)}>
@@ -214,32 +379,34 @@ const VendorDashboard = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-muted rounded-lg">
                         <div className="flex items-center gap-2 text-sm">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{order.customerName}</span>
+                          <span>{order.customer_name}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Phone className="h-4 w-4 text-muted-foreground" />
-                          <span>{order.customerPhone}</span>
+                          <a href={`tel:${order.customer_phone}`} className="text-primary hover:underline">
+                            {order.customer_phone}
+                          </a>
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <span>{order.deliveryLocation}</span>
+                          <span>{order.customer_location}</span>
                         </div>
                       </div>
 
                       {/* Order Items */}
                       <div className="space-y-2">
-                        {order.items.map((item, idx) => (
+                        {(order.items as any[]).map((item: any, idx: number) => (
                           <div key={idx} className="flex justify-between text-sm">
                             <div>
                               <span className="font-medium">{item.quantity}x {item.menuItemName}</span>
-                              {item.selectedAddOns.length > 0 && (
+                              {item.selectedAddOns?.length > 0 && (
                                 <p className="text-muted-foreground text-xs">
-                                  + {item.selectedAddOns.map(a => a.name).join(', ')}
+                                  + {item.selectedAddOns.map((a: any) => a.name).join(', ')}
                                 </p>
                               )}
-                              {item.customItems.length > 0 && (
+                              {item.customItems?.length > 0 && (
                                 <p className="text-muted-foreground text-xs">
-                                  + {item.customItems.map(c => c.name).join(', ')}
+                                  + {item.customItems.map((c: any) => c.name).join(', ')}
                                 </p>
                               )}
                             </div>
@@ -272,7 +439,7 @@ const VendorDashboard = () => {
                             {order.status === 'ready' && (
                               <Button
                                 size="sm"
-                                variant="success"
+                                variant="outline"
                                 onClick={() => updateOrderStatus(order.id, 'delivered')}
                               >
                                 Mark Delivered
@@ -427,6 +594,47 @@ const VendorDashboard = () => {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-6">
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg">SMS Notifications</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Enter your phone number to receive SMS notifications when new orders come in.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g. 0201234567"
+                    value={vendorPhone}
+                    onChange={(e) => setVendorPhone(e.target.value)}
+                    className="max-w-xs"
+                  />
+                  <Button
+                    onClick={async () => {
+                      const { error } = await supabase
+                        .from("vendors")
+                        .update({ phone: vendorPhone })
+                        .eq("vendor_id", vendorId);
+                      
+                      if (error) {
+                        toast.error("Failed to save phone number");
+                      } else {
+                        toast.success("Phone number saved! You'll receive SMS for new orders.");
+                      }
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Format: Ghana phone number (e.g., 0201234567)
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

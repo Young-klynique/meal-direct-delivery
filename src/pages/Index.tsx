@@ -1,10 +1,11 @@
 import { Header } from "@/components/Header";
 import { VendorCard } from "@/components/VendorCard";
 import { useApp } from "@/context/AppContext";
-import { MapPin, Clock, Truck } from "lucide-react";
+import { MapPin, Clock, Truck, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Index = () => {
-  const { vendors, deliveryFee } = useApp();
+  const { vendors, deliveryFee, loadingVendors } = useApp();
 
   return (
     <div className="min-h-screen gradient-hero">
@@ -48,9 +49,21 @@ const Index = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {vendors.map((vendor, index) => (
-            <VendorCard key={vendor.id} vendor={vendor} index={index} />
-          ))}
+          {loadingVendors ? (
+            <>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="space-y-3">
+                  <Skeleton className="h-32 w-full rounded-xl" />
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              ))}
+            </>
+          ) : (
+            vendors.map((vendor, index) => (
+              <VendorCard key={vendor.id} vendor={vendor} index={index} />
+            ))
+          )}
         </div>
       </section>
 
