@@ -22,9 +22,9 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const clientId = Deno.env.get("HUBTEL_CLIENT_ID");
-    const clientSecret = Deno.env.get("HUBTEL_CLIENT_SECRET");
-    const senderId = Deno.env.get("HUBTEL_SENDER_ID");
+    const clientId = Deno.env.get("HUBTEL_CLIENT_ID")?.trim();
+    const clientSecret = Deno.env.get("HUBTEL_CLIENT_SECRET")?.trim();
+    const senderId = Deno.env.get("HUBTEL_SENDER_ID")?.trim();
 
     if (!clientId || !clientSecret || !senderId) {
       throw new Error("Hubtel credentials not configured");
