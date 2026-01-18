@@ -697,7 +697,7 @@ const VendorDashboard = () => {
                     onClick={async () => {
                       const { error } = await supabase
                         .from("vendors")
-                        .update({ phone: vendorPhone })
+                        .update({ phone: vendorPhone.trim() })
                         .eq("vendor_id", vendorId);
 
                       if (error) {
@@ -729,9 +729,15 @@ const VendorDashboard = () => {
                         },
                       });
 
-                      if (error) {
+                      const failed =
+                        !!error || (data && typeof data === "object" && "success" in data && (data as any).success === false);
+
+                      if (failed) {
+                        const details =
+                          error?.message || (data as any)?.hubtel?.statusDescription || (data as any)?.error || "Unknown error";
+
                         toast.error("Test SMS failed", {
-                          description: error.message,
+                          description: details,
                         });
                         console.error("Test SMS error:", error);
                         console.error("Test SMS response:", data);

@@ -130,10 +130,14 @@ const Cart = () => {
             },
           });
 
-          if (smsError) {
-            console.error("SMS invoke error:", smsError);
-            console.error("SMS invoke response:", smsData);
-            // Don't fail the order if SMS fails
+          const smsFailed =
+            !!smsError || (smsData && typeof smsData === "object" && "success" in smsData && (smsData as any).success === false);
+
+          if (smsFailed) {
+            console.warn("SMS notification failed (order still created):", {
+              smsError,
+              smsData,
+            });
           }
         }
       }

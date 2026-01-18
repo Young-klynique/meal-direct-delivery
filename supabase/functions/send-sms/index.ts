@@ -98,7 +98,16 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Hubtel SMS response:", result);
 
     if (!response.ok) {
-      throw new Error(`Hubtel API error: ${JSON.stringify(result)}`);
+      // IMPORTANT: Don't throw / return 500 for downstream API auth failures.
+      // Returning 200 avoids client-side hard failures while still reporting the problem.
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Hubtel API error",
+          hubtel: result,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
+      );
     }
 
     return new Response(
@@ -108,8 +117,11 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error sending SMS:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify({
+        success: false,
+        error: error?.message || "Unknown error",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
     );
   }
 };
