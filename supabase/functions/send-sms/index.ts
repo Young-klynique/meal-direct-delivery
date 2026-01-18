@@ -15,6 +15,20 @@ interface SMSRequest {
   location: string;
 }
 
+const normalizeGhanaPhone = (raw: string) => {
+  const digits = (raw || "").replace(/\D/g, "");
+
+  // Common Ghana formats:
+  // 0551234567 -> 233551234567
+  // +233551234567 -> 233551234567
+  // 233551234567 -> 233551234567
+  if (digits.length === 10 && digits.startsWith("0")) return `233${digits.slice(1)}`;
+  if (digits.length === 9) return `233${digits}`;
+  if (digits.startsWith("233")) return digits;
+
+  return digits;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -30,14 +44,28 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Hubtel credentials not configured");
     }
 
-    const { vendorPhone, vendorName, customerName, customerPhone, orderItems, total, location }: SMSRequest = await req.json();
+    const {
+      vendorPhone,
+      vendorName,
+      customerName,
+      customerPhone,
+      orderItems,
+      total,
+      location,
+    }: SMSRequest = await req.json();
 
     if (!vendorPhone) {
       console.log("No vendor phone provided, skipping SMS");
       return new Response(
         JSON.stringify({ success: true, message: "No vendor phone, SMS skipped" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
       );
+    }
+
+    const to = normalizeGhanaPhone(vendorPhone);
+
+    if (!to || to.length < 10) {
+      throw new Error(`Invalid vendor phone number: ${vendorPhone}`);
     }
 
     // Format the message
@@ -45,7 +73,14 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Hubtel SMS API
     const credentials = btoa(`${clientId}:${clientSecret}`);
-    
+
+    console.log("Sending SMS", {
+      vendorName,
+      to,
+      from: senderId,
+      messagePreview: message.slice(0, 80),
+    });
+
     const response = await fetch("https://smsc.hubtel.com/v1/messages/send", {
       method: "POST",
       headers: {
@@ -54,7 +89,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: JSON.stringify({
         From: senderId,
-        To: vendorPhone,
+        To: to,
         Content: message,
       }),
     });

@@ -57,6 +57,11 @@ const VendorDashboard = () => {
   const [tempAddOns, setTempAddOns] = useState<AddOn[]>([]);
   const [vendorPhone, setVendorPhone] = useState("");
 
+  // Orders filtering
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "delivered">("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+
   // Load vendor phone from database
   useEffect(() => {
     if (!vendorId) return;
@@ -297,6 +302,31 @@ const VendorDashboard = () => {
     }
   };
 
+  const filteredOrders = dbOrders.filter((order) => {
+    if (statusFilter === "active" && order.status === "delivered") return false;
+    if (statusFilter === "delivered" && order.status !== "delivered") return false;
+
+    const createdAt = new Date(order.created_at);
+
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      // include entire day
+      from.setHours(0, 0, 0, 0);
+      if (createdAt < from) return false;
+    }
+
+    if (dateTo) {
+      const to = new Date(dateTo);
+      // include entire day
+      to.setHours(23, 59, 59, 999);
+      if (createdAt > to) return false;
+    }
+
+    return true;
+  });
+
+  const activeCount = dbOrders.filter((o) => o.status !== "delivered").length;
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -336,27 +366,77 @@ const VendorDashboard = () => {
 
           {/* Orders Tab */}
           <TabsContent value="orders" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">
-                Incoming Orders ({dbOrders.filter(o => o.status !== 'delivered').length})
-              </h2>
-              {loading && (
-                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-              )}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Orders</h2>
+                {loading && (
+                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={statusFilter === "all" ? "default" : "outline"}
+                    onClick={() => setStatusFilter("all")}
+                  >
+                    All ({dbOrders.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={statusFilter === "active" ? "default" : "outline"}
+                    onClick={() => setStatusFilter("active")}
+                  >
+                    Active ({activeCount})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={statusFilter === "delivered" ? "default" : "outline"}
+                    onClick={() => setStatusFilter("delivered")}
+                  >
+                    Delivered ({dbOrders.filter((o) => o.status === "delivered").length})
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">From</Label>
+                    <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">To</Label>
+                    <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                  </div>
+
+                  {(dateFrom || dateTo) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setDateFrom("");
+                        setDateTo("");
+                      }}
+                    >
+                      Clear dates
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
             
-            {dbOrders.length === 0 ? (
+            {filteredOrders.length === 0 ? (
               <Card className="shadow-card">
                 <CardContent className="py-12 text-center">
                   <Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
                   <p className="text-muted-foreground">
-                    {loading ? "Loading orders..." : "No orders yet"}
+                    {loading ? "Loading orders..." : "No orders match your filters"}
                   </p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
-                {dbOrders.map((order) => (
+                {filteredOrders.map((order) => (
                   <Card key={order.id} className="shadow-card">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
@@ -606,7 +686,7 @@ const VendorDashboard = () => {
                 <p className="text-sm text-muted-foreground">
                   Enter your phone number to receive SMS notifications when new orders come in.
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Input
                     placeholder="e.g. 0201234567"
                     value={vendorPhone}
@@ -619,7 +699,7 @@ const VendorDashboard = () => {
                         .from("vendors")
                         .update({ phone: vendorPhone })
                         .eq("vendor_id", vendorId);
-                      
+
                       if (error) {
                         toast.error("Failed to save phone number");
                       } else {
@@ -628,6 +708,41 @@ const VendorDashboard = () => {
                     }}
                   >
                     Save
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!vendorPhone.trim()) {
+                        toast.error("Please enter a phone number first");
+                        return;
+                      }
+
+                      const { data, error } = await supabase.functions.invoke("send-sms", {
+                        body: {
+                          vendorPhone: vendorPhone.trim(),
+                          vendorName: vendor.name,
+                          customerName: "Test Customer",
+                          customerPhone: "0000000000",
+                          orderItems: "1x Test Order",
+                          total: 1,
+                          location: "Test Location",
+                        },
+                      });
+
+                      if (error) {
+                        toast.error("Test SMS failed", {
+                          description: error.message,
+                        });
+                        console.error("Test SMS error:", error);
+                        console.error("Test SMS response:", data);
+                      } else {
+                        toast.success("Test SMS request sent", {
+                          description: "If your Hubtel account is correct, you should receive it shortly.",
+                        });
+                      }
+                    }}
+                  >
+                    Send Test SMS
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
