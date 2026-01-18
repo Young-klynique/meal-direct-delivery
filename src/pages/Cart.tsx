@@ -102,11 +102,15 @@ const Cart = () => {
         }
 
         // Get vendor phone for SMS (from database if available)
-        const { data: vendorData } = await supabase
+        const { data: vendorData, error: vendorError } = await supabase
           .from("vendors")
           .select("phone")
           .eq("vendor_id", group.vendorId)
-          .single();
+          .maybeSingle();
+
+        if (vendorError) {
+          console.warn("Vendor phone lookup error:", vendorError);
+        }
 
         // Send SMS notification to vendor
         if (vendorData?.phone) {
@@ -114,20 +118,21 @@ const Cart = () => {
             .map((item) => `${item.quantity}x ${item.menuItemName}`)
             .join(", ");
 
-          try {
-            await supabase.functions.invoke("send-sms", {
-              body: {
-                vendorPhone: vendorData.phone,
-                vendorName: group.vendorName,
-                customerName: customerName.trim(),
-                customerPhone: customerPhone.trim(),
-                orderItems: itemsSummary,
-                total: orderTotal,
-                location: deliveryLocation.trim(),
-              },
-            });
-          } catch (smsError) {
-            console.error("SMS error:", smsError);
+          const { data: smsData, error: smsError } = await supabase.functions.invoke("send-sms", {
+            body: {
+              vendorPhone: vendorData.phone,
+              vendorName: group.vendorName,
+              customerName: customerName.trim(),
+              customerPhone: customerPhone.trim(),
+              orderItems: itemsSummary,
+              total: orderTotal,
+              location: deliveryLocation.trim(),
+            },
+          });
+
+          if (smsError) {
+            console.error("SMS invoke error:", smsError);
+            console.error("SMS invoke response:", smsData);
             // Don't fail the order if SMS fails
           }
         }

@@ -12,6 +12,7 @@ import VendorPortal from "./pages/VendorPortal";
 import VendorDashboard from "./pages/VendorDashboard";
 import Auth from "./pages/Auth";
 import QRCodePage from "./pages/QRCodePage";
+import MyOrders from "./pages/MyOrders";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/vendor/:vendorId" element={<VendorMenu />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/order-success" element={<OrderSuccess />} />
+            <Route path="/orders" element={<MyOrders />} />
             <Route path="/vendor-portal" element={<VendorPortal />} />
             <Route path="/vendor-portal/:vendorId" element={<VendorDashboard />} />
             <Route path="*" element={<NotFound />} />

@@ -1,4 +1,4 @@
-import { ShoppingCart, Store, User, LogOut, QrCode } from "lucide-react";
+import { ShoppingCart, Store, User, LogOut, QrCode, ListOrdered } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useApp } from "@/context/AppContext";
@@ -59,6 +59,12 @@ export const Header = () => {
                     {user.email}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/orders" className="flex items-center">
+                      <ListOrdered className="h-4 w-4 mr-2" />
+                      My Orders
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={signOut}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Sign Out

@@ -2,9 +2,12 @@ import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, ArrowLeft, Truck } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { CheckCircle2, ArrowLeft, Truck, ListOrdered } from "lucide-react";
 
 const OrderSuccess = () => {
+  const { user } = useAuth();
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -33,12 +36,23 @@ const OrderSuccess = () => {
               </div>
             </div>
 
-            <Link to="/">
-              <Button variant="warm" size="lg" className="w-full">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Home
-              </Button>
-            </Link>
+            <div className="space-y-3">
+              {user && (
+                <Link to="/orders">
+                  <Button variant="outline" size="lg" className="w-full">
+                    <ListOrdered className="h-4 w-4 mr-2" />
+                    View My Orders
+                  </Button>
+                </Link>
+              )}
+
+              <Link to="/">
+                <Button variant="warm" size="lg" className="w-full">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Home
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
