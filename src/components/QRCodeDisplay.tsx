@@ -4,11 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Download, QrCode } from "lucide-react";
 
 interface QRCodeDisplayProps {
-  url: string;
+  url?: string;
   title?: string;
 }
 
+// Use the published URL instead of preview URL
+const PUBLISHED_URL = "https://meal-direct-delivery.lovable.app";
+
 export const QRCodeDisplay = ({ url, title = "Scan to Order" }: QRCodeDisplayProps) => {
+  const qrUrl = url || PUBLISHED_URL;
   const handleDownload = () => {
     const svg = document.getElementById("qr-code-svg");
     if (!svg) return;
@@ -47,7 +51,7 @@ export const QRCodeDisplay = ({ url, title = "Scan to Order" }: QRCodeDisplayPro
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <QRCodeSVG
             id="qr-code-svg"
-            value={url}
+            value={qrUrl}
             size={200}
             level="H"
             includeMargin

@@ -9,8 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Trash2, ShoppingBag, MapPin, Phone, User, LogIn } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowLeft, Trash2, ShoppingBag, MapPin, Phone, User, LogIn, Truck, Store } from "lucide-react";
 import { toast } from "sonner";
+
+type OrderType = "delivery" | "pickup";
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -19,6 +22,7 @@ const Cart = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryLocation, setDeliveryLocation] = useState("");
+  const [orderType, setOrderType] = useState<OrderType>("delivery");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pre-fill from user profile
@@ -36,7 +40,8 @@ const Cart = () => {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + calculateItemTotal(item), 0);
-  const total = subtotal + deliveryFee;
+  const appliedDeliveryFee = orderType === "delivery" ? deliveryFee : 0;
+  const total = subtotal + appliedDeliveryFee;
 
   // Group cart items by vendor
   const groupedItems = cart.reduce((acc, item, index) => {
@@ -60,8 +65,13 @@ const Cart = () => {
       return;
     }
 
-    if (!customerName.trim() || !customerPhone.trim() || !deliveryLocation.trim()) {
-      toast.error("Please fill in all delivery details");
+    if (!customerName.trim() || !customerPhone.trim()) {
+      toast.error("Please fill in your name and phone number");
+      return;
+    }
+
+    if (orderType === "delivery" && !deliveryLocation.trim()) {
+      toast.error("Please enter your delivery location");
       return;
     }
 
@@ -76,7 +86,11 @@ const Cart = () => {
       // Create orders for each vendor in the database
       for (const group of groupedItems) {
         const groupSubtotal = group.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
-        const orderTotal = groupSubtotal + deliveryFee;
+        const orderTotal = groupSubtotal + appliedDeliveryFee;
+
+        const locationText = orderType === "pickup" 
+          ? "PICKUP" 
+          : deliveryLocation.trim();
 
         // Insert order into database
         const { data: orderData, error: orderError } = await supabase
@@ -87,10 +101,10 @@ const Cart = () => {
             vendor_name: group.vendorName,
             items: JSON.parse(JSON.stringify(group.items)),
             total: orderTotal,
-            delivery_fee: deliveryFee,
+            delivery_fee: appliedDeliveryFee,
             customer_name: customerName.trim(),
             customer_phone: customerPhone.trim(),
-            customer_location: deliveryLocation.trim(),
+            customer_location: locationText,
             status: "pending",
           })
           .select()
@@ -126,7 +140,8 @@ const Cart = () => {
               customerPhone: customerPhone.trim(),
               orderItems: itemsSummary,
               total: orderTotal,
-              location: deliveryLocation.trim(),
+              location: locationText,
+              orderType: orderType,
             },
           });
 
@@ -296,10 +311,53 @@ const Cart = () => {
 
           {/* Order Summary & Delivery Details */}
           <div className="space-y-6">
-            {/* Delivery Details */}
+            {/* Order Type Selection */}
             <Card className="shadow-card">
               <CardHeader>
-                <CardTitle className="text-lg">Delivery Details</CardTitle>
+                <CardTitle className="text-lg">Order Type</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup
+                  value={orderType}
+                  onValueChange={(value) => setOrderType(value as OrderType)}
+                  className="grid grid-cols-2 gap-4"
+                >
+                  <Label
+                    htmlFor="delivery"
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      orderType === "delivery"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <RadioGroupItem value="delivery" id="delivery" className="sr-only" />
+                    <Truck className={`h-6 w-6 ${orderType === "delivery" ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className={`font-medium ${orderType === "delivery" ? "text-primary" : ""}`}>Delivery</span>
+                    <span className="text-xs text-muted-foreground">+GH₵{deliveryFee}</span>
+                  </Label>
+                  <Label
+                    htmlFor="pickup"
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      orderType === "pickup"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <RadioGroupItem value="pickup" id="pickup" className="sr-only" />
+                    <Store className={`h-6 w-6 ${orderType === "pickup" ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className={`font-medium ${orderType === "pickup" ? "text-primary" : ""}`}>Pickup</span>
+                    <span className="text-xs text-muted-foreground">Free</span>
+                  </Label>
+                </RadioGroup>
+              </CardContent>
+            </Card>
+
+            {/* Customer Details */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  {orderType === "delivery" ? "Delivery Details" : "Your Details"}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -326,18 +384,20 @@ const Cart = () => {
                     onChange={(e) => setCustomerPhone(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location" className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Delivery Location
-                  </Label>
-                  <Input
-                    id="location"
-                    placeholder="e.g. Building A, Floor 2, Desk 15"
-                    value={deliveryLocation}
-                    onChange={(e) => setDeliveryLocation(e.target.value)}
-                  />
-                </div>
+                {orderType === "delivery" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="location" className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Delivery Location
+                    </Label>
+                    <Input
+                      id="location"
+                      placeholder="e.g. Building A, Floor 2, Desk 15"
+                      value={deliveryLocation}
+                      onChange={(e) => setDeliveryLocation(e.target.value)}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -352,8 +412,10 @@ const Cart = () => {
                   <span>GH₵{subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Delivery Fee</span>
-                  <span>GH₵{deliveryFee.toFixed(2)}</span>
+                  <span className="text-muted-foreground">
+                    {orderType === "delivery" ? "Delivery Fee" : "Pickup"}
+                  </span>
+                  <span>{orderType === "delivery" ? `GH₵${deliveryFee.toFixed(2)}` : "Free"}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-bold text-lg">
