@@ -71,9 +71,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Format the message
     const message = `KLM Eats Order!\n${customerName} (${customerPhone})\nItems: ${orderItems}\nTotal: GH₵${total.toFixed(2)}\nLocation: ${location}`;
 
-    // Hubtel SMS API
-    const credentials = btoa(`${clientId}:${clientSecret}`);
-
+    // Hubtel SMS API using query parameters (as per provided URL format)
     console.log("Sending SMS", {
       vendorName,
       to,
@@ -81,17 +79,16 @@ const handler = async (req: Request): Promise<Response> => {
       messagePreview: message.slice(0, 80),
     });
 
-    const response = await fetch("https://smsc.hubtel.com/v1/messages/send", {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${credentials}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        From: senderId,
-        To: to,
-        Content: message,
-      }),
+    const params = new URLSearchParams({
+      clientsecret: clientSecret,
+      clientid: clientId,
+      from: senderId,
+      to: to,
+      content: message,
+    });
+
+    const response = await fetch(`https://smsc.hubtel.com/v1/messages/send?${params.toString()}`, {
+      method: "GET",
     });
 
     const result = await response.json();
