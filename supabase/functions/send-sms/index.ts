@@ -6,13 +6,17 @@ const corsHeaders = {
 };
 
 interface SMSRequest {
-  vendorPhone: string;
-  vendorName: string;
+  vendorPhone?: string;
+  vendorName?: string;
   customerName: string;
   customerPhone: string;
-  orderItems: string;
-  total: number;
-  location: string;
+  orderItems?: string;
+  total?: number;
+  location?: string;
+  orderType?: string;
+  // For customer notifications
+  type?: "vendor_order" | "customer_ready";
+  orderId?: string;
 }
 
 const normalizeGhanaPhone = (raw: string) => {
@@ -44,6 +48,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Hubtel credentials not configured");
     }
 
+    const body: SMSRequest = await req.json();
+
     const {
       vendorPhone,
       vendorName,
@@ -52,28 +58,51 @@ const handler = async (req: Request): Promise<Response> => {
       orderItems,
       total,
       location,
-    }: SMSRequest = await req.json();
+      orderType,
+      type,
+      orderId,
+    } = body;
 
-    if (!vendorPhone) {
-      console.log("No vendor phone provided, skipping SMS");
-      return new Response(
-        JSON.stringify({ success: true, message: "No vendor phone, SMS skipped" }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
-      );
+    let to: string;
+    let message: string;
+
+    if (type === "customer_ready") {
+      // Customer notification when order is ready
+      if (!customerPhone) {
+        console.log("No customer phone provided, skipping SMS");
+        return new Response(
+          JSON.stringify({ success: true, message: "No customer phone, SMS skipped" }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
+        );
+      }
+
+      to = normalizeGhanaPhone(customerPhone);
+      const orderRef = orderId ? `#${orderId.slice(-6).toUpperCase()}` : "";
+      message = `KLM Eats: Hi ${customerName}, your order ${orderRef} is ready for ${location === "PICKUP" ? "pickup" : "delivery"}! Thank you for ordering.`;
+    } else {
+      // Vendor notification (default)
+      if (!vendorPhone) {
+        console.log("No vendor phone provided, skipping SMS");
+        return new Response(
+          JSON.stringify({ success: true, message: "No vendor phone, SMS skipped" }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
+        );
+      }
+
+      to = normalizeGhanaPhone(vendorPhone);
+
+      // Format the message with Ghs instead of GH₵
+      const orderTypeText = orderType === "pickup" ? " [PICKUP]" : "";
+      message = `KLM Eats Order!${orderTypeText}\n${customerName} (${customerPhone})\nItems: ${orderItems}\nTotal: Ghs ${total?.toFixed(2) || "0.00"}\nLocation: ${location}`;
     }
-
-    const to = normalizeGhanaPhone(vendorPhone);
 
     if (!to || to.length < 10) {
-      throw new Error(`Invalid vendor phone number: ${vendorPhone}`);
+      throw new Error(`Invalid phone number: ${to}`);
     }
-
-    // Format the message
-    const message = `KLM Eats Order!\n${customerName} (${customerPhone})\nItems: ${orderItems}\nTotal: GH₵${total.toFixed(2)}\nLocation: ${location}`;
 
     // Hubtel SMS API using query parameters (as per provided URL format)
     console.log("Sending SMS", {
-      vendorName,
+      type: type || "vendor_order",
       to,
       from: senderId,
       messagePreview: message.slice(0, 80),

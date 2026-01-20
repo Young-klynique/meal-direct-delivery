@@ -5,8 +5,6 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const QRCodePage = () => {
-  const siteUrl = window.location.origin;
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -27,7 +25,7 @@ const QRCodePage = () => {
             </p>
           </div>
 
-          <QRCodeDisplay url={siteUrl} title="KLM Eats - Order Food" />
+          <QRCodeDisplay title="KLM Eats - Order Food" />
 
           <div className="mt-8 p-4 bg-muted rounded-lg">
             <h3 className="font-semibold mb-2">Instructions:</h3>
