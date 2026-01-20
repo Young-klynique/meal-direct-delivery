@@ -150,8 +150,38 @@ const VendorDashboard = () => {
     if (error) {
       toast.error("Failed to update order status");
       console.error(error);
-    } else {
-      toast.success(`Order marked as ${status}`);
+      return;
+    }
+
+    toast.success(`Order marked as ${status}`);
+
+    // Send SMS to customer when order is ready
+    if (status === "ready") {
+      const order = dbOrders.find((o) => o.id === orderId);
+      if (order?.customer_phone) {
+        try {
+          const { data, error: smsError } = await supabase.functions.invoke("send-sms", {
+            body: {
+              type: "customer_ready",
+              customerName: order.customer_name,
+              customerPhone: order.customer_phone,
+              orderId: orderId,
+              location: order.customer_location,
+            },
+          });
+
+          const smsFailed =
+            !!smsError || (data && typeof data === "object" && "success" in data && (data as any).success === false);
+
+          if (smsFailed) {
+            console.warn("Customer SMS notification failed:", { smsError, data });
+          } else {
+            toast.success("Customer notified via SMS");
+          }
+        } catch (err) {
+          console.warn("Failed to send customer SMS:", err);
+        }
+      }
     }
   };
 
