@@ -93,7 +93,8 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Format the message with Ghs instead of GH₵
       const orderTypeText = orderType === "pickup" ? " [PICKUP]" : "";
-      message = `KLM Eats Order!${orderTypeText}\n${customerName} (${customerPhone})\nItems: ${orderItems}\nTotal: Ghs ${total?.toFixed(2) || "0.00"}\nLocation: ${location}`;
+      const orderRef = orderId ? `Order #${orderId.slice(-6).toUpperCase()}\n` : "";
+      message = `KLM Eats Order!${orderTypeText}\n${orderRef}${customerName} (${customerPhone})\nItems: ${orderItems}\nTotal: Ghs ${total?.toFixed(2) || "0.00"}\nLocation: ${location}`;
     }
 
     if (!to || to.length < 10) {

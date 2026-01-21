@@ -142,6 +142,7 @@ const Cart = () => {
               total: orderTotal,
               location: locationText,
               orderType: orderType,
+              orderId: orderData.id,
             },
           });
 
