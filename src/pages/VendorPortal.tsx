@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useApp } from "@/context/AppContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Store, ChevronRight, Lock, Eye, EyeOff } from "lucide-react";
-
-const VENDOR_PASSWORD = "vendor2024";
 
 const VendorPortal = () => {
   const { vendors } = useApp();
@@ -16,10 +15,24 @@ const VendorPortal = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [accessCode, setAccessCode] = useState("");
+
+  // Load vendor access code from database
+  useEffect(() => {
+    const fetchAccessCode = async () => {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "vendor_access_code")
+        .maybeSingle();
+      if (data?.value) setAccessCode(data.value);
+    };
+    fetchAccessCode();
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === VENDOR_PASSWORD) {
+    if (password === accessCode) {
       setIsAuthenticated(true);
       setError("");
     } else {
