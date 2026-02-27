@@ -9,10 +9,11 @@ interface QRCodeDisplayProps {
 }
 
 // Use the published URL instead of preview URL
-const PUBLISHED_URL = "https://meal-direct-delivery.lovable.app";
+const PUBLISHED_URL = "https://klmeat.vercel.app/";
 
 export const QRCodeDisplay = ({ url, title = "Scan to Order" }: QRCodeDisplayProps) => {
-  const qrUrl = url || PUBLISHED_URL;
+  // Always use the published Vercel URL regardless of any passed `url` prop
+  const qrUrl = PUBLISHED_URL;
   const handleDownload = () => {
     const svg = document.getElementById("qr-code-svg");
     if (!svg) return;
