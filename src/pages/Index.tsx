@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { VendorCard } from "@/components/VendorCard";
 import { useApp } from "@/context/AppContext";
-import { MapPin, Clock, Truck, Loader2 } from "lucide-react";
+import { Clock, Truck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Index = () => {
@@ -30,10 +30,6 @@ const Index = () => {
             <div className="flex items-center gap-2 bg-card rounded-full px-4 py-2 shadow-card">
               <Clock className="h-4 w-4 text-secondary" />
               <span className="text-sm font-medium">15-30 min</span>
-            </div>
-            <div className="flex items-center gap-2 bg-card rounded-full px-4 py-2 shadow-card">
-              <MapPin className="h-4 w-4 text-accent-foreground" />
-              <span className="text-sm font-medium">Campus-wide</span>
             </div>
           </div>
         </div>
@@ -71,7 +67,7 @@ const Index = () => {
       <footer className="border-t bg-card/50">
         <div className="container py-8 text-center text-sm text-muted-foreground">
           <p>KLM Eats - Food Delivery Service</p>
-          <p className="mt-1">Pay on delivery • No login required</p>
+          <p className="mt-1">Pay on delivery • Sign up to order</p>
         </div>
       </footer>
     </div>
