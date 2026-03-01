@@ -80,6 +80,17 @@ const Cart = () => {
       return;
     }
 
+    // Check ordering cutoff time (11:45 AM)
+    const now = new Date();
+    const cutoffHour = 11;
+    const cutoffMinute = 45;
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const cutoffMinutes = cutoffHour * 60 + cutoffMinute;
+    if (currentMinutes >= cutoffMinutes) {
+      toast.error("Orders are closed for today. Please order before 11:45 AM.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
