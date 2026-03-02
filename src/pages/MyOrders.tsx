@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Package, RefreshCw } from "lucide-react";
 
+import { CartItem } from "@/types";
+
 interface DBOrder {
   id: string;
   vendor_id: string;
   vendor_name: string;
-  items: any;
+  items: CartItem[];
   total: number;
   delivery_fee: number;
   customer_name: string;
@@ -214,17 +216,42 @@ const MyOrders = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
-                    {(order.items as any[]).map((item: any, idx: number) => (
-                      <div key={idx} className="text-sm">
-                        <span className="font-medium">{item.quantity}x {item.menuItemName}</span>
-                        {item.selectedAddOns?.length > 0 && (
-                          <span className="text-muted-foreground"> • + {item.selectedAddOns.map((a: any) => a.name).join(", ")}</span>
-                        )}
-                        {item.customItems?.length > 0 && (
-                          <span className="text-muted-foreground"> • + {item.customItems.map((c: any) => c.name).join(", ")}</span>
-                        )}
-                      </div>
-                    ))}
+                    {(order.items as any[]).map((item: any, idx: number) => {
+                      const addOnsTotal = (item.selectedAddOns || []).reduce(
+                        (sum: number, a: any) => sum + (a.price || 0),
+                        0
+                      );
+                      const customTotal = (item.customItems || []).reduce(
+                        (sum: number, c: any) => sum + (c.price || 0),
+                        0
+                      );
+                      const unitPrice = (item.basePrice || 0) + addOnsTotal + customTotal;
+                      const lineTotal = unitPrice * (item.quantity || 1);
+
+                      return (
+                        <div key={idx} className="text-sm">
+                          <span className="font-medium">
+                            {item.quantity}x {item.menuItemName}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {' '}• GH₵{unitPrice.toFixed(2)} each
+                          </span>
+                          {item.selectedAddOns?.length > 0 && (
+                            <span className="text-muted-foreground">
+                              {' '}• + {item.selectedAddOns.map((a: any) => `${a.name} (GH₵${a.price})`).join(', ')}
+                            </span>
+                          )}
+                          {item.customItems?.length > 0 && (
+                            <span className="text-muted-foreground">
+                              {' '}• + {item.customItems.map((c: any) => `${c.name} (GH₵${c.price})`).join(', ')}
+                            </span>
+                          )}
+                          <span className="float-right font-semibold">
+                            GH₵{lineTotal.toFixed(2)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t">

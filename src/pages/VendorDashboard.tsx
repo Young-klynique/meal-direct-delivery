@@ -25,13 +25,13 @@ import {
   Copy
 } from "lucide-react";
 import { toast } from "sonner";
-import { MenuItem, AddOn } from "@/types";
+import { MenuItem, AddOn, CartItem } from "@/types";
 
 interface DBOrder {
   id: string;
   vendor_id: string;
   vendor_name: string;
-  items: any;
+  items: CartItem[];
   total: number;
   delivery_fee: number;
   customer_name: string;
@@ -516,23 +516,44 @@ const VendorDashboard = () => {
 
                       {/* Order Items */}
                       <div className="space-y-2">
-                        {(order.items as any[]).map((item: any, idx: number) => (
-                          <div key={idx} className="flex justify-between text-sm">
-                            <div>
-                              <span className="font-medium">{item.quantity}x {item.menuItemName}</span>
-                              {item.selectedAddOns?.length > 0 && (
+                        {(order.items as any[]).map((item: any, idx: number) => {
+                          // compute unit price + add-ons + custom items
+                          const addOnsTotal = (item.selectedAddOns || []).reduce(
+                            (sum: number, a: any) => sum + (a.price || 0),
+                            0
+                          );
+                          const customTotal = (item.customItems || []).reduce(
+                            (sum: number, c: any) => sum + (c.price || 0),
+                            0
+                          );
+                          const unitPrice = (item.basePrice || 0) + addOnsTotal + customTotal;
+                          const lineTotal = unitPrice * (item.quantity || 1);
+
+                          return (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <div>
+                                <span className="font-medium">
+                                  {item.quantity}x {item.menuItemName}
+                                </span>
                                 <p className="text-muted-foreground text-xs">
-                                  + {item.selectedAddOns.map((a: any) => a.name).join(', ')}
+                                  GH₵{unitPrice.toFixed(2)} each
                                 </p>
-                              )}
-                              {item.customItems?.length > 0 && (
-                                <p className="text-muted-foreground text-xs">
-                                  + {item.customItems.map((c: any) => c.name).join(', ')}
-                                </p>
-                              )}
+                                {item.selectedAddOns?.length > 0 && (
+                                  <p className="text-muted-foreground text-xs">
+                                    + {item.selectedAddOns.map((a: any) => `${a.name} (GH₵${a.price})`).join(', ')}
+                                  </p>
+                                )}
+                                {item.customItems?.length > 0 && (
+                                  <p className="text-muted-foreground text-xs">
+                                    + {item.customItems.map((c: any) => `${c.name} (GH₵${c.price})`).join(', ')}
+                                  </p>
+                                )}
+                              </div>
+
+                              <span className="font-medium">GH₵{lineTotal.toFixed(2)}</span>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       <div className="flex items-center justify-between pt-3 border-t">

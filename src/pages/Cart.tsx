@@ -155,7 +155,13 @@ const Cart = () => {
         // Send SMS notification to vendor
         if (vendorData?.phone) {
           const itemsSummary = group.items
-            .map((item) => `${item.quantity}x ${item.menuItemName}`)
+            .map((item) => {
+              const addOnsTotal = item.selectedAddOns.reduce((s, a) => s + a.price, 0);
+              const customTotal = item.customItems.reduce((s, c) => s + c.price, 0);
+              const unitPrice = item.basePrice + addOnsTotal + customTotal;
+              const line = `${item.quantity}x ${item.menuItemName} (GH₵${unitPrice.toFixed(2)})`;
+              return line;
+            })
             .join(", ");
 
           const { data: smsData, error: smsError } = await supabase.functions.invoke("send-sms", {
