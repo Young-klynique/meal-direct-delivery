@@ -15,6 +15,7 @@ import QRCodePage from "./pages/QRCodePage";
 import MyOrders from "./pages/MyOrders";
 import AdminPortal from "./pages/AdminPortal";
 import SaffronMenu from "./pages/SaffronMenu";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/vendor-portal/:vendorId" element={<VendorDashboard />} />
             <Route path="/admin" element={<AdminPortal />} />
             <Route path="/saffron" element={<SaffronMenu />} />
+            <Route path="/install" element={<Install />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

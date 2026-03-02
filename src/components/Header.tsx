@@ -1,4 +1,4 @@
-import { ShoppingCart, Store, User, LogOut, QrCode, ListOrdered, Shield } from "lucide-react";
+import { ShoppingCart, Store, User, LogOut, QrCode, ListOrdered, Shield, Download } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useApp } from "@/context/AppContext";
@@ -46,6 +46,12 @@ export const Header = () => {
             <Button variant="ghost" size="sm" className="text-muted-foreground">
               <Shield className="h-4 w-4" />
               <span className="hidden sm:inline ml-1">Admin</span>
+            </Button>
+          </Link>
+          <Link to="/install">
+            <Button variant="ghost" size="sm" className="text-muted-foreground">
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Install</span>
             </Button>
           </Link>
           
