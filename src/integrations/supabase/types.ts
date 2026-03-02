@@ -122,6 +122,8 @@ export type Database = {
           is_open: boolean | null
           menu: Json | null
           name: string
+          order_end_time: string | null
+          order_start_time: string | null
           phone: string | null
           rating: number | null
           sender_id: string | null
@@ -136,6 +138,8 @@ export type Database = {
           is_open?: boolean | null
           menu?: Json | null
           name: string
+          order_end_time?: string | null
+          order_start_time?: string | null
           phone?: string | null
           rating?: number | null
           sender_id?: string | null
@@ -150,6 +154,8 @@ export type Database = {
           is_open?: boolean | null
           menu?: Json | null
           name?: string
+          order_end_time?: string | null
+          order_start_time?: string | null
           phone?: string | null
           rating?: number | null
           sender_id?: string | null

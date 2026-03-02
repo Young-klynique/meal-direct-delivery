@@ -21,7 +21,8 @@ import {
   MapPin,
   Phone,
   User,
-  RefreshCw
+  RefreshCw,
+  Copy
 } from "lucide-react";
 import { toast } from "sonner";
 import { MenuItem, AddOn } from "@/types";
@@ -56,6 +57,8 @@ const VendorDashboard = () => {
   const [newAddOnPrice, setNewAddOnPrice] = useState("");
   const [tempAddOns, setTempAddOns] = useState<AddOn[]>([]);
   const [vendorPhone, setVendorPhone] = useState("");
+  const [orderStartTime, setOrderStartTime] = useState("06:00");
+  const [orderEndTime, setOrderEndTime] = useState("11:45");
 
   // Orders filtering
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "delivered">("all");
@@ -66,19 +69,19 @@ const VendorDashboard = () => {
   useEffect(() => {
     if (!vendorId) return;
     
-    const fetchVendorPhone = async () => {
+    const fetchVendorSettings = async () => {
       const { data } = await supabase
         .from("vendors")
-        .select("phone")
+        .select("phone, order_start_time, order_end_time")
         .eq("vendor_id", vendorId)
         .maybeSingle();
       
-      if (data?.phone) {
-        setVendorPhone(data.phone);
-      }
+      if (data?.phone) setVendorPhone(data.phone);
+      if (data?.order_start_time) setOrderStartTime(data.order_start_time);
+      if (data?.order_end_time) setOrderEndTime(data.order_end_time);
     };
     
-    fetchVendorPhone();
+    fetchVendorSettings();
   }, [vendorId]);
 
   // Fetch orders from database
@@ -289,7 +292,6 @@ const VendorDashboard = () => {
   const deleteMenuItem = async (itemId: string) => {
     const updatedMenu = vendor.menuItems.filter((item) => item.id !== itemId);
 
-    // Update in database
     const { error } = await supabase
       .from("vendors")
       .update({ menu: JSON.parse(JSON.stringify(updatedMenu)) })
@@ -301,7 +303,6 @@ const VendorDashboard = () => {
       return;
     }
 
-    // Update local state
     setVendors((prev) =>
       prev.map((v) =>
         v.id === vendorId
@@ -310,6 +311,16 @@ const VendorDashboard = () => {
       )
     );
     toast.success("Menu item deleted");
+  };
+
+  const duplicateMenuItem = (item: MenuItem) => {
+    setNewItemName(item.name + " (copy)");
+    setNewItemPrice(String(item.basePrice));
+    setNewItemDescription(item.description || "");
+    setTempAddOns(item.addOns.map((a) => ({ ...a, id: `temp-${Date.now()}-${Math.random()}` })));
+    toast.info("Item copied to form — edit and save!");
+    // Scroll to top of menu tab
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const getStatusColor = (status: string) => {
@@ -689,14 +700,25 @@ const VendorDashboard = () => {
                               </div>
                             )}
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => deleteMenuItem(item.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+                              onClick={() => duplicateMenuItem(item)}
+                              title="Duplicate item"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => deleteMenuItem(item.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -706,8 +728,60 @@ const VendorDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
+            {/* Order Time Settings */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Order Hours
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Set the hours during which customers can place orders. Orders outside this window will be blocked.
+                </p>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Orders Open At</Label>
+                    <Input
+                      type="time"
+                      value={orderStartTime}
+                      onChange={(e) => setOrderStartTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Orders Close At</Label>
+                    <Input
+                      type="time"
+                      value={orderEndTime}
+                      onChange={(e) => setOrderEndTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from("vendors")
+                      .update({
+                        order_start_time: orderStartTime,
+                        order_end_time: orderEndTime,
+                      })
+                      .eq("vendor_id", vendorId);
+
+                    if (error) {
+                      toast.error("Failed to save order hours");
+                    } else {
+                      toast.success(`Orders will be accepted from ${orderStartTime} to ${orderEndTime}`);
+                    }
+                  }}
+                >
+                  Save Order Hours
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* SMS Settings */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">SMS Notifications</CardTitle>
@@ -769,8 +843,6 @@ const VendorDashboard = () => {
                         toast.error("Test SMS failed", {
                           description: details,
                         });
-                        console.error("Test SMS error:", error);
-                        console.error("Test SMS response:", data);
                       } else {
                         toast.success("Test SMS request sent", {
                           description: "If your Hubtel account is correct, you should receive it shortly.",

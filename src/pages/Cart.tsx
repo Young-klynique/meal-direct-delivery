@@ -80,15 +80,30 @@ const Cart = () => {
       return;
     }
 
-    // Check ordering cutoff time (11:45 AM)
+    // Check vendor order time windows
     const now = new Date();
-    const cutoffHour = 11;
-    const cutoffMinute = 45;
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const cutoffMinutes = cutoffHour * 60 + cutoffMinute;
-    if (currentMinutes >= cutoffMinutes) {
-      toast.error("Orders are closed for today. Please order before 11:45 AM.");
-      return;
+
+    for (const group of groupedItems) {
+      // Fetch vendor order hours
+      const { data: vendorData } = await supabase
+        .from("vendors")
+        .select("order_start_time, order_end_time")
+        .eq("vendor_id", group.vendorId)
+        .maybeSingle();
+
+      const startTime = vendorData?.order_start_time || "06:00";
+      const endTime = vendorData?.order_end_time || "11:45";
+
+      const [startH, startM] = startTime.split(":").map(Number);
+      const [endH, endM] = endTime.split(":").map(Number);
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = endH * 60 + endM;
+
+      if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
+        toast.error(`${group.vendorName} accepts orders only between ${startTime} and ${endTime}.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
