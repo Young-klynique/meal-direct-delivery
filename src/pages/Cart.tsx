@@ -15,15 +15,22 @@ import { toast } from "sonner";
 
 type OrderType = "delivery" | "pickup";
 
+interface VendorDeliverySettings {
+  delivery_enabled: boolean;
+  pickup_enabled: boolean;
+  custom_delivery_fee: number;
+}
+
 const Cart = () => {
   const navigate = useNavigate();
-  const { cart, removeFromCart, clearCart, deliveryFee } = useApp();
+  const { cart, removeFromCart, clearCart } = useApp();
   const { user, loading } = useAuth();
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryLocation, setDeliveryLocation] = useState("");
   const [orderType, setOrderType] = useState<OrderType>("delivery");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [vendorSettings, setVendorSettings] = useState<Record<string, VendorDeliverySettings>>({});
 
   // Pre-fill from user profile
   useEffect(() => {
@@ -32,6 +39,49 @@ const Cart = () => {
       setCustomerPhone(user.user_metadata?.phone || "");
     }
   }, [user]);
+
+  // Fetch vendor delivery settings for cart vendors
+  useEffect(() => {
+    const vendorIds = [...new Set(cart.map((item) => item.vendorId))];
+    if (vendorIds.length === 0) return;
+
+    const fetchSettings = async () => {
+      const { data } = await supabase
+        .from("vendors")
+        .select("vendor_id, delivery_enabled, pickup_enabled, custom_delivery_fee")
+        .in("vendor_id", vendorIds);
+
+      if (data) {
+        const map: Record<string, VendorDeliverySettings> = {};
+        data.forEach((v) => {
+          map[v.vendor_id] = {
+            delivery_enabled: v.delivery_enabled ?? true,
+            pickup_enabled: v.pickup_enabled ?? true,
+            custom_delivery_fee: v.custom_delivery_fee ?? 5,
+          };
+        });
+        setVendorSettings(map);
+
+        // Auto-select order type based on availability
+        const allDeliveryDisabled = vendorIds.every((id) => map[id] && !map[id].delivery_enabled);
+        const allPickupDisabled = vendorIds.every((id) => map[id] && !map[id].pickup_enabled);
+        if (allDeliveryDisabled && !allPickupDisabled) setOrderType("pickup");
+        if (allPickupDisabled && !allDeliveryDisabled) setOrderType("delivery");
+      }
+    };
+    fetchSettings();
+  }, [cart]);
+
+  // Compute max delivery fee across vendors in cart
+  const deliveryFee = Object.values(vendorSettings).length > 0
+    ? Math.max(...Object.values(vendorSettings).map((s) => s.custom_delivery_fee))
+    : 5;
+
+  // Check if delivery/pickup available across all vendors
+  const deliveryAvailable = Object.keys(vendorSettings).length === 0 || 
+    Object.values(vendorSettings).some((s) => s.delivery_enabled);
+  const pickupAvailable = Object.keys(vendorSettings).length === 0 || 
+    Object.values(vendorSettings).some((s) => s.pickup_enabled);
 
   const calculateItemTotal = (item: typeof cart[0]) => {
     const addOnsTotal = item.selectedAddOns.reduce((sum, addon) => sum + addon.price, 0);
@@ -357,29 +407,37 @@ const Cart = () => {
                 >
                   <Label
                     htmlFor="delivery"
-                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      orderType === "delivery"
-                        ? "border-primary bg-primary/5"
-                        : "border-muted hover:border-muted-foreground/30"
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                      !deliveryAvailable
+                        ? "opacity-40 cursor-not-allowed"
+                        : orderType === "delivery"
+                        ? "border-primary bg-primary/5 cursor-pointer"
+                        : "border-muted hover:border-muted-foreground/30 cursor-pointer"
                     }`}
                   >
-                    <RadioGroupItem value="delivery" id="delivery" className="sr-only" />
+                    <RadioGroupItem value="delivery" id="delivery" className="sr-only" disabled={!deliveryAvailable} />
                     <Truck className={`h-6 w-6 ${orderType === "delivery" ? "text-primary" : "text-muted-foreground"}`} />
                     <span className={`font-medium ${orderType === "delivery" ? "text-primary" : ""}`}>Delivery</span>
-                    <span className="text-xs text-muted-foreground">+GH₵{deliveryFee}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {deliveryAvailable ? `+GH₵${deliveryFee}` : "Not available"}
+                    </span>
                   </Label>
                   <Label
                     htmlFor="pickup"
-                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                      orderType === "pickup"
-                        ? "border-primary bg-primary/5"
-                        : "border-muted hover:border-muted-foreground/30"
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                      !pickupAvailable
+                        ? "opacity-40 cursor-not-allowed"
+                        : orderType === "pickup"
+                        ? "border-primary bg-primary/5 cursor-pointer"
+                        : "border-muted hover:border-muted-foreground/30 cursor-pointer"
                     }`}
                   >
-                    <RadioGroupItem value="pickup" id="pickup" className="sr-only" />
+                    <RadioGroupItem value="pickup" id="pickup" className="sr-only" disabled={!pickupAvailable} />
                     <Store className={`h-6 w-6 ${orderType === "pickup" ? "text-primary" : "text-muted-foreground"}`} />
                     <span className={`font-medium ${orderType === "pickup" ? "text-primary" : ""}`}>Pickup</span>
-                    <span className="text-xs text-muted-foreground">Free</span>
+                    <span className="text-xs text-muted-foreground">
+                      {pickupAvailable ? "Free" : "Not available"}
+                    </span>
                   </Label>
                 </RadioGroup>
               </CardContent>
