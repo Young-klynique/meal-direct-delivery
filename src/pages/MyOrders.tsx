@@ -90,7 +90,7 @@ const MyOrders = () => {
       console.error("Error fetching customer orders:", error);
       setOrders([]);
     } else {
-      setOrders((data || []) as DBOrder[]);
+      setOrders((data || []) as unknown as DBOrder[]);
     }
 
     setIsLoadingOrders(false);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useApp } from "@/context/AppContext";
@@ -22,7 +22,9 @@ import {
   Phone,
   User,
   RefreshCw,
-  Copy
+  Copy,
+  ImagePlus,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
 import { MenuItem, AddOn, CartItem } from "@/types";
@@ -59,6 +61,10 @@ const VendorDashboard = () => {
   const [vendorPhone, setVendorPhone] = useState("");
   const [orderStartTime, setOrderStartTime] = useState("06:00");
   const [orderEndTime, setOrderEndTime] = useState("11:45");
+  const [newItemImage, setNewItemImage] = useState<File | null>(null);
+  const [newItemImagePreview, setNewItemImagePreview] = useState<string>("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Orders filtering
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "delivered">("all");
@@ -98,7 +104,7 @@ const VendorDashboard = () => {
       if (error) {
         console.error("Error fetching orders:", error);
       } else {
-        setDbOrders(data || []);
+        setDbOrders((data || []) as unknown as DBOrder[]);
       }
       setLoading(false);
     };
@@ -258,6 +264,34 @@ const VendorDashboard = () => {
       addOns: tempAddOns.map((a, i) => ({ ...a, id: `addon-${Date.now()}-${i}` })),
     };
 
+    // Upload image if selected
+    if (newItemImage) {
+      setIsUploadingImage(true);
+      const fileExt = newItemImage.name.split(".").pop();
+      const filePath = `${vendorId}/${newItem.id}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("menu-images")
+        .upload(filePath, newItemImage, { upsert: true });
+
+      if (uploadError) {
+        toast.error("Failed to upload image");
+        console.error(uploadError);
+        setIsUploadingImage(false);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("menu-images")
+        .getPublicUrl(filePath);
+
+      newItem.image = urlData.publicUrl;
+      setIsUploadingImage(false);
+    } else if (newItemImagePreview && !newItemImage) {
+      // Duplicated item with existing image URL
+      newItem.image = newItemImagePreview;
+    }
+
     const updatedMenu = [...vendor.menuItems, newItem];
 
     // Update in database
@@ -286,6 +320,9 @@ const VendorDashboard = () => {
     setNewItemPrice("");
     setNewItemDescription("");
     setTempAddOns([]);
+    setNewItemImage(null);
+    setNewItemImagePreview("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
     toast.success("Menu item added!");
   };
 
@@ -318,6 +355,9 @@ const VendorDashboard = () => {
     setNewItemPrice(String(item.basePrice));
     setNewItemDescription(item.description || "");
     setTempAddOns(item.addOns.map((a) => ({ ...a, id: `temp-${Date.now()}-${Math.random()}` })));
+    setNewItemImage(null);
+    setNewItemImagePreview(item.image || "");
+    if (imageInputRef.current) imageInputRef.current.value = "";
     toast.info("Item copied to form — edit and save!");
     // Scroll to top of menu tab
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -633,6 +673,60 @@ const VendorDashboard = () => {
                   />
                 </div>
 
+                {/* Image Upload */}
+                <div className="space-y-2">
+                  <Label>Food Image (optional)</Label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast.error("Image must be under 5MB");
+                            return;
+                          }
+                          setNewItemImage(file);
+                          setNewItemImagePreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                    {newItemImagePreview ? (
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden border">
+                        <img src={newItemImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-0 right-0 h-6 w-6 bg-background/80 hover:bg-destructive hover:text-destructive-foreground rounded-full"
+                          onClick={() => {
+                            setNewItemImage(null);
+                            setNewItemImagePreview("");
+                            if (imageInputRef.current) imageInputRef.current.value = "";
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-20 w-20 flex flex-col gap-1"
+                        onClick={() => imageInputRef.current?.click()}
+                      >
+                        <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Add</span>
+                      </Button>
+                    )}
+                    {!newItemImagePreview && (
+                      <p className="text-xs text-muted-foreground">Upload a photo of the food item (max 5MB)</p>
+                    )}
+                  </div>
+                </div>
+
                 {/* Add-ons */}
                 <div className="space-y-3">
                   <Label>Add-ons</Label>
@@ -677,9 +771,13 @@ const VendorDashboard = () => {
                   )}
                 </div>
 
-                <Button onClick={addMenuItem} variant="warm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Menu Item
+                <Button onClick={addMenuItem} variant="warm" disabled={isUploadingImage}>
+                  {isUploadingImage ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  {isUploadingImage ? "Uploading..." : "Add Menu Item"}
                 </Button>
               </CardContent>
             </Card>
@@ -700,8 +798,15 @@ const VendorDashboard = () => {
                   {vendor.menuItems.map((item) => (
                     <Card key={item.id} className="shadow-card">
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                        <div className="flex items-start gap-3">
+                          {item.image && (
+                            <img 
+                              src={item.image} 
+                              alt={item.name} 
+                              className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3">
                               <h3 className="font-semibold">{item.name}</h3>
                               <Badge variant="outline">GH₵{item.basePrice}</Badge>
@@ -721,7 +826,7 @@ const VendorDashboard = () => {
                               </div>
                             )}
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 flex-shrink-0">
                             <Button
                               variant="ghost"
                               size="icon"

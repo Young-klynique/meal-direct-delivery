@@ -1,4 +1,4 @@
-import { ShoppingCart, Store, User, LogOut, QrCode, ListOrdered, Shield, Download } from "lucide-react";
+import { ShoppingCart, Store, User, LogOut, QrCode, ListOrdered, Shield, Download, MoreHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useApp } from "@/context/AppContext";
@@ -30,30 +30,54 @@ export const Header = () => {
           </div>
         </Link>
 
-        <nav className="flex items-center gap-2">
-          <Link to="/qr-code">
+        <nav className="flex items-center gap-1 sm:gap-2">
+          <Link to="/qr-code" className="hidden sm:block">
             <Button variant="ghost" size="sm" className="text-muted-foreground">
               <QrCode className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">QR Code</span>
+              <span className="hidden md:inline ml-2">QR Code</span>
             </Button>
           </Link>
           <Link to="/vendor-portal">
-            <Button variant="ghost" size="sm" className="text-muted-foreground">
-              Vendor Portal
+            <Button variant="ghost" size="sm" className="text-muted-foreground px-2 sm:px-3">
+              <Store className="h-4 w-4 sm:hidden" />
+              <span className="hidden sm:inline">Vendor Portal</span>
             </Button>
           </Link>
-          <Link to="/admin">
+          <Link to="/admin" className="hidden sm:block">
             <Button variant="ghost" size="sm" className="text-muted-foreground">
               <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1">Admin</span>
+              <span className="hidden md:inline ml-1">Admin</span>
             </Button>
           </Link>
-          <Link to="/install">
-            <Button variant="ghost" size="sm" className="text-muted-foreground">
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1">Install</span>
-            </Button>
-          </Link>
+
+          {/* Mobile overflow menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild className="sm:hidden">
+              <Button variant="ghost" size="sm" className="text-muted-foreground px-2">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link to="/qr-code" className="flex items-center">
+                  <QrCode className="h-4 w-4 mr-2" />
+                  QR Code
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/admin" className="flex items-center">
+                  <Shield className="h-4 w-4 mr-2" />
+                  Admin
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/install" className="flex items-center">
+                  <Download className="h-4 w-4 mr-2" />
+                  Install App
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           {!loading && (
             user ? (
