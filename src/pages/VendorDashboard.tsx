@@ -66,6 +66,11 @@ const VendorDashboard = () => {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  // Delivery settings
+  const [deliveryEnabled, setDeliveryEnabled] = useState(true);
+  const [pickupEnabled, setPickupEnabled] = useState(true);
+  const [customDeliveryFee, setCustomDeliveryFee] = useState("5");
+
   // Orders filtering
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "delivered">("all");
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -78,13 +83,16 @@ const VendorDashboard = () => {
     const fetchVendorSettings = async () => {
       const { data } = await supabase
         .from("vendors")
-        .select("phone, order_start_time, order_end_time")
+        .select("phone, order_start_time, order_end_time, delivery_enabled, pickup_enabled, custom_delivery_fee")
         .eq("vendor_id", vendorId)
         .maybeSingle();
       
       if (data?.phone) setVendorPhone(data.phone);
       if (data?.order_start_time) setOrderStartTime(data.order_start_time);
       if (data?.order_end_time) setOrderEndTime(data.order_end_time);
+      if (data?.delivery_enabled !== undefined) setDeliveryEnabled(data.delivery_enabled);
+      if (data?.pickup_enabled !== undefined) setPickupEnabled(data.pickup_enabled);
+      if (data?.custom_delivery_fee !== undefined) setCustomDeliveryFee(String(data.custom_delivery_fee));
     };
     
     fetchVendorSettings();
@@ -903,6 +911,84 @@ const VendorDashboard = () => {
                   }}
                 >
                   Save Order Hours
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Delivery Settings */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Delivery & Pickup Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Control whether customers can choose delivery, pickup, or both. Set your custom delivery fee.
+                </p>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="delivery-toggle">Allow Delivery</Label>
+                    <Switch
+                      id="delivery-toggle"
+                      checked={deliveryEnabled}
+                      onCheckedChange={(checked) => {
+                        if (!checked && !pickupEnabled) {
+                          toast.error("At least one option must be enabled");
+                          return;
+                        }
+                        setDeliveryEnabled(checked);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="pickup-toggle">Allow Pickup</Label>
+                    <Switch
+                      id="pickup-toggle"
+                      checked={pickupEnabled}
+                      onCheckedChange={(checked) => {
+                        if (!checked && !deliveryEnabled) {
+                          toast.error("At least one option must be enabled");
+                          return;
+                        }
+                        setPickupEnabled(checked);
+                      }}
+                    />
+                  </div>
+                  {deliveryEnabled && (
+                    <div className="space-y-2">
+                      <Label>Delivery Fee (GH₵)</Label>
+                      <Input
+                        type="number"
+                        value={customDeliveryFee}
+                        onChange={(e) => setCustomDeliveryFee(e.target.value)}
+                        className="max-w-[120px]"
+                        min="0"
+                        step="0.5"
+                      />
+                    </div>
+                  )}
+                </div>
+                <Button
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from("vendors")
+                      .update({
+                        delivery_enabled: deliveryEnabled,
+                        pickup_enabled: pickupEnabled,
+                        custom_delivery_fee: parseFloat(customDeliveryFee) || 5,
+                      })
+                      .eq("vendor_id", vendorId);
+
+                    if (error) {
+                      toast.error("Failed to save delivery settings");
+                    } else {
+                      toast.success("Delivery settings saved!");
+                    }
+                  }}
+                >
+                  Save Delivery Settings
                 </Button>
               </CardContent>
             </Card>

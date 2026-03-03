@@ -116,6 +116,8 @@ export type Database = {
       vendors: {
         Row: {
           created_at: string
+          custom_delivery_fee: number
+          delivery_enabled: boolean
           description: string | null
           id: string
           image: string | null
@@ -125,6 +127,7 @@ export type Database = {
           order_end_time: string | null
           order_start_time: string | null
           phone: string | null
+          pickup_enabled: boolean
           rating: number | null
           sender_id: string | null
           updated_at: string
@@ -132,6 +135,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_delivery_fee?: number
+          delivery_enabled?: boolean
           description?: string | null
           id?: string
           image?: string | null
@@ -141,6 +146,7 @@ export type Database = {
           order_end_time?: string | null
           order_start_time?: string | null
           phone?: string | null
+          pickup_enabled?: boolean
           rating?: number | null
           sender_id?: string | null
           updated_at?: string
@@ -148,6 +154,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_delivery_fee?: number
+          delivery_enabled?: boolean
           description?: string | null
           id?: string
           image?: string | null
@@ -157,6 +165,7 @@ export type Database = {
           order_end_time?: string | null
           order_start_time?: string | null
           phone?: string | null
+          pickup_enabled?: boolean
           rating?: number | null
           sender_id?: string | null
           updated_at?: string
